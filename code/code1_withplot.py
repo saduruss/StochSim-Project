@@ -70,44 +70,51 @@ T = 1
 S0 = 100
 K = 100
 
+
 Mlist = 2**np.arange(5,10)
 Nlist = 2**np.arange(7,14)
+
 nM = np.size(Mlist)
 nN = np.size(Nlist)
 
-cmc_err_est = np.zeros(nM)
-qmc_err_est = np.zeros(nM)
+cmc_mean_value, qmc_mean_value = np.zeros(nM), np.zeros(nM)
 
-cmc_est = np.zeros(nM)
-qmc_est = np.zeros(nM)
+cmc_est, cmc_err_est = np.zeros(nN), np.zeros(nN)
+qmc_est, qmc_err_est = np.zeros(nN), np.zeros(nN)
 
 fig, axes = plt.subplots(nrows = 5, ncols = 1, figsize = (8,30))
-types = 2 # change to 1 or 2
+
+types = 1 # change to 1 or 2
 
 K = 20
 for j in range(nM):
-    for i in range(nM):
+    print('Computation for m = '+str(Mlist[j])+' ...')
+    for i in range(nN):
         cmc_est[i], cmc_err_est[i] = CMC(types, Mlist[j], Nlist[i])
         qmc_est[i], qmc_err_est[i] = QMC(types, Mlist[j], Nlist[i]/K, K)
+    
+    cmc_mean_value[j] = np.mean(cmc_est)
+    qmc_mean_value[j] = np.mean(qmc_est)
     
     # save results:
     cmc = np.append('cmc_err_est',cmc_err_est)
     qmc = np.append('qmc_err_est',qmc_err_est)
-    fileName = 'results/error1_' + str(Mlist[j]) + '.csv'
+    fileName = 'results/ex1/error_Psi'+str(types)+'_' + str(Mlist[j]) + '.csv'
     np.savetxt(fileName, [p for p in zip(cmc, qmc)], delimiter=';', fmt='%s')
     
     # plot:
     ax = axes[j]
-    ax.loglog(Mlist, cmc_err_est, '-',  label = 'CMC error estimate')
-    ax.loglog(Mlist, qmc_err_est, '-',  label = 'QMC error estimate')
-    ax.loglog(Mlist, Mlist**-0.5, '--', label = r'$M^{-1/2}$',color='gray')
+    ax.loglog(Nlist, cmc_err_est, '-',  label = 'CMC error estimate')
+    ax.loglog(Nlist, qmc_err_est, '-',  label = 'QMC error estimate')
+    ax.loglog(Nlist, Nlist**-0.5, '--', label = r'$N^{-1/2}$',color='gray')
     
     if types == 2:
-        ax.loglog(Mlist, Mlist**-1.0, ':',  label = r'$M^{-1}$',color='gray')
+        ax.loglog(Nlist, Nlist**-1.0, ':',  label = r'$N^{-1}$',color='gray')
     
     ax.set_title(r'$\Psi_'+str(types)+'$, $m='+str(Mlist[j])+'$')
     ax.grid(True,which='both') 
-    ax.legend()
+    ax.legend() 
+
 
 plt.savefig('./figures/ex1_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
 plt.show()
