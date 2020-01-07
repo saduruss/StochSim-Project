@@ -25,22 +25,22 @@ def genPsi(type, xi, t, r, sigma, S0, K):
 		val = (np.abs(np.mean(S) - K) + (np.mean(S) - K))/2
 	elif type == 2:
 		val = (np.mean(S) - K) > 0
-	return val, np.mean(S)
+	return val, S
 
 def evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
     d = x.shape[0]
     M = x.shape[1]
     val = np.zeros(M)
-    S = np.zeros(M)
+    S = np.zeros((M,d))
     t = np.linspace(0, T, d+1)
     if type == 1:
         for j in range(M):
             xi = st.norm.ppf(x[:,j])
-            val[j], S[j] = genPsi(type, xi, t, r, sigma, S0, K)
+            val[j], S[j,:] = genPsi(type, xi, t, r, sigma, S0, K)
     elif type == 2:
         for j in range(M):
             xi = st.norm.ppf(x[:,j])
-            val[j], S[j] = genPsi(type, xi, t, r, sigma, S0, K)
+            val[j], S[j,:] = genPsi(type, xi, t, r, sigma, S0, K)
     return val, S
 
 def CMC(type, d, M):
@@ -77,9 +77,31 @@ def CV(type, d, N, N_bar):
     C = np.cov(data1,S2)
     a_opt = -C[0,1]/C[1,1]
     # Monte Carlo
-    x1 = np.random.random((d, N))
-    data1, S2 = evaluate(type, x1)
+    x = np.random.random((d, N))
+    data1, S2 = evaluate(type, x)
     Z_tilde = data1 + a_opt*(S2-mean)
+    est = np.mean(Z_tilde)
+    err_est = np.sqrt(np.var(Z_tilde)/N)
+    return est, err_est
+
+def MCV(type, d, N):
+    x = np.random.random((d,N))
+    data, S = evaluate(type,x)
+    t = np.linspace(0,T,d+1)
+    t = t[1:]
+    mu_y = S0*np.exp(r*t)
+    mu_z = np.mean(data)
+    s2_zy = np.zeros(d)
+    s2_yy = np.zeros((d,d))
+    for j in range(d):
+        s2_zy[j] = 1/(N-1)*np.sum((data-mu_z)*(S[:,j] - mu_y[j]))
+    for j in range(d):
+        for k in range(d):
+            s2_yy[j,k] = np.mean((S[:,j] - mu_y[j])*(S[:,k] - mu_y[k]))
+    a_opt = -np.linalg.inv(s2_yy)@s2_zy
+    Z_tilde = np.zeros(N)
+    for i in range(N):
+        Z_tilde[i] = data[i] + a_opt.dot(S[i,:] - mu_y) 
     est = np.mean(Z_tilde)
     err_est = np.sqrt(np.var(Z_tilde)/N)
     return est, err_est
@@ -126,7 +148,7 @@ K = 20
 for j in range(nM):
     for i in range(nN):
         cmc_est[i], cmc_err_est[i] = CMC(types, Mlist[j], Nlist[i])
-        cv_est[i], cv_err_est[i] = CV(types, Mlist[j], Nlist[i], int(Nlist[i]/2**4))
+        cv_est[i], cv_err_est[i] = MCV(types, Mlist[j], Nlist[i])
         av_est[i], av_err_est[i] = AV(types, Mlist[j], Nlist[i])
     
     cmc_mean[j] = np.mean(cmc_est)
@@ -137,7 +159,7 @@ for j in range(nM):
     cv = np.append('cv_err_est',cv_err_est)
     av = np.append('av_err_est',av_err_est)
     fileName = 'results/ex3/error_Psi'+str(types)+'_' + str(Mlist[j]) + '.csv'
-    np.savetxt(fileName, [p for p in zip(cmc, cv, av)], delimiter=';', fmt='%s')
+    #np.savetxt(fileName, [p for p in zip(cmc, cv, av)], delimiter=';', fmt='%s')
     
     # plot:
     ax = axes[j]
@@ -153,7 +175,7 @@ for j in range(nM):
     ax.grid(True,which='both') 
     ax.legend()
 
-plt.savefig('./figures/ex3_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
+#plt.savefig('./figures/ex3_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
 plt.show()
 
 # price for m:
