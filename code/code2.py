@@ -119,7 +119,7 @@ def pre_int_CMC(type, d, M):
     return est, err_est
 
 def pre_int_QMC(type, d, N, K):
-    x = sn.generate_points(N, d, 0)
+    x = sn.generate_points(N, d-1, 0)
     x = x.T
     data = np.zeros(K)
     for i in range(K):
