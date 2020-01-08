@@ -104,7 +104,7 @@ def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
     d = x.shape[0]
     M = x.shape[1]
     val = np.zeros(M)
-    t = np.linspace(0, T, d+1)
+    t = np.linspace(0, T, d+2)[:-1]
     for j in range(M):
         xi = st.norm.ppf(x[:,j])
         val[j] = p(type, xi, t, r, sigma, S0, K)
