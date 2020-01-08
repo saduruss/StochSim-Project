@@ -123,7 +123,7 @@ def pre_int_QMC(type, d, N, K):
     x = x.T
     data = np.zeros(K)
     for i in range(K):
-        dat = pre_int_evaluate(type, np.mod(x + matlib.repmat(np.random.random(size=(int(d),1)), 1, int(N)),1))
+        dat = pre_int_evaluate(type, np.mod(x + matlib.repmat(np.random.random(size=(int(d-1),1)), 1, int(N)),1))
         data[i] = np.mean(dat)
     est = np.mean(data)
     err_est = 3*np.std(data)/np.sqrt(K)
