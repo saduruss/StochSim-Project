@@ -62,11 +62,12 @@ def QMC(type, d, N, K):
     return est, err_est
 
 
-def Simpson(type, M, U_star, S, dt, r, sigma, K):
+def Simpson(type, U_star, S, dt, r, sigma, K):
+    M = 2**7
     if U_star == 1:
         return 0
     else:
-        h = (1-U_star) / M
+        h = (1-U_star) / (M+1)
         xi = st.norm.ppf(np.linspace(U_star, 1-h, M+1))
         S_end = S[-1] * np.exp((r - sigma**2/2)*dt + sigma*np.sqrt(dt)*xi)
         
@@ -74,16 +75,16 @@ def Simpson(type, M, U_star, S, dt, r, sigma, K):
         
         f = np.zeros(M+1)
         if type == 1:
-            f = (np.abs(mean_S - K) + (mean_S - K))/2
+            f = np.maximum(mean_S-K, np.zeros(mean_S.shape))
         elif type == 2:
             f = (mean_S - K) > 0
         
-        val = f[0] + 4*f[-2] + f[-1]
-        for k in np.arange(1,M/2-1):
-            val = val + 2*f[int(2*k)] + 4*f[int(2*k-1)]
+        val = f[0] + 4*f[1] + f[-1]
+        for k in np.arange(1,M/2):
+            val = val + 2*f[int(2*k)] + 4*f[int(2*k+1)]
         return h/3 * val
 
-def p(type, xi, t, r, sigma, S0, K, M):
+def p(type, xi, t, r, sigma, S0, K):
     d = xi.shape[0]
     dt = np.diff(t)
     W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
@@ -96,11 +97,7 @@ def p(type, xi, t, r, sigma, S0, K, M):
         U_star = st.norm.cdf(value)
     else:
         U_star = 0
-    
-    if type == 1:
-        val = Simpson(type, M, U_star, S, dt[0], r, sigma, K)
-    elif type == 2:
-        val = Simpson(type, M, U_star, S, dt[0], r, sigma, K)
+    val = Simpson(type, U_star, S, dt[0], r, sigma, K)
     return val
 
 def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
@@ -110,8 +107,7 @@ def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
     t = np.linspace(0, T, d+1)
     for j in range(M):
         xi = st.norm.ppf(x[:,j])
-        M = 2**7
-        val[j] = p(type, xi, t, r, sigma, S0, K, M)
+        val[j] = p(type, xi, t, r, sigma, S0, K)
     return val
 
 def pre_int_CMC(type, d, M):
@@ -161,7 +157,7 @@ qmc_est_pre, qmc_err_est_pre = np.zeros(nN), np.zeros(nN)
 
 fig, axes = plt.subplots(nrows = 5, ncols = 2, figsize = (16,30))
 axes = axes.flatten()
-types = 2 # change to 1 or 2
+types = 1 # change to 1 or 2
 
 K = 20
 for j in range(nM):
@@ -199,8 +195,8 @@ for j in range(nM):
     ax = axes[int(2*j)]
     ax.loglog(Nlist, cmc_err_est, '-', label = 'CMC error estimate')
     ax.loglog(Nlist, qmc_err_est, '-', label = 'QMC error estimate')
-    ax.loglog(Nlist, cmc_err_est_pre, '-', label = 'CMC with pre-int error estimate')
-    ax.loglog(Nlist, qmc_err_est_pre, '-', label = 'QMC with pre-int error estimate')
+    ax.loglog(Nlist, cmc_err_est_pre, '-', label = 'CMC with pre-int. error estimate')
+    ax.loglog(Nlist, qmc_err_est_pre, '-', label = 'QMC with pre-int. error estimate')
     ax.loglog(Nlist, Nlist**-0.5, '--', label = r'$N^{-1/2}$',color='gray')
     if types == 2:
         ax.loglog(Nlist, Nlist**-1.0, ':',  label = r'$N^{-1}$',color='gray')
