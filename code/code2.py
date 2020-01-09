@@ -18,8 +18,10 @@ matplotlib.rcParams['text.latex.preamble'] = [
 
 def genPsi(type, xi, t, r, sigma, S0, K):
     dt = np.diff(t)
-    W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
-    S = S0*np.exp((r - sigma**2/2)*t + sigma*W)
+    #W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
+    #S = S0*np.exp((r - sigma**2/2)*t + sigma*W)
+    W = np.cumsum(np.sqrt(dt)*xi)
+    S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)
     if type == 1:
         val = (np.abs(np.mean(S) - K) + (np.mean(S) - K))/2
     elif type == 2:
@@ -69,7 +71,7 @@ def Simpson(type, U_star, S, dt, r, sigma, K):
     else:
         h = (1-U_star) / (M+1)
         xi = st.norm.ppf(np.linspace(U_star, 1-h, M+1))
-        S_end = S[-1] * np.exp((r - sigma**2/2)*dt + sigma*np.sqrt(dt)*xi)
+        S_end = S[-1] * np.exp((r - sigma**2/2)*dt + sigma*np.sqrt(dt)*xi) #pas compris
         
         mean_S = np.mean(np.concatenate((matlib.repmat(S,M+1,1),S_end.reshape((M+1,1))), axis=1), 1)
         
@@ -87,13 +89,15 @@ def Simpson(type, U_star, S, dt, r, sigma, K):
 def p(type, xi, t, r, sigma, S0, K):
     d = xi.shape[0]
     dt = np.diff(t)
-    W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
-    S = S0*np.exp((r - sigma**2/2)*t + sigma*W)  # stock price 0,...,T-dt (without last value)
+    #W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
+    #S = S0*np.exp((r - sigma**2/2)*t + sigma*W)  # stock price 0,...,T-dt (without last value)
+    W = np.cumsum(np.sqrt(dt)*xi)
+    S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)  # stock price 0,...,T-dt (without last value)
     
     # integration bound U_star for the integrale
     Stm_star = (d+1)*K - np.sum(S)
     if Stm_star > 0:
-        value = np.log(Stm_star/S0)/(dt[0]*sigma*t[-1]) - (r-sigma**2/2)/(dt[0]*sigma) - W[-1]/dt[0]
+        value = np.log(Stm_star/S0)/(dt[0]*sigma*(t[-1]+dt[0])) - (r-sigma**2/2)/(dt[0]*sigma) - W[-1]/dt[0]
         U_star = st.norm.cdf(value)
     else:
         U_star = 0
@@ -225,8 +229,8 @@ price_qmc = np.exp(-r*T) * qmc_mean
 price_pre_cmc = np.exp(-r*T) * pre_cmc_mean
 price_pre_qmc = np.exp(-r*T) * pre_qmc_mean
 
-#print('Price for m = 32, 64, 128, 256, 512')
-#print(price_cmc)
-#print(price_qmc)
-#print(price_pre_cmc)
-#print(price_pre_qmc)
+print('Price for m = 32, 64, 128, 256, 512')
+print(price_cmc)
+print(price_qmc)
+print(price_pre_cmc)
+print(price_pre_qmc)

@@ -20,6 +20,8 @@ def genPsi(type, xi, t, r, sigma, S0, K):
 	dt = np.diff(t)
 	W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
 	S = S0*np.exp((r - sigma**2/2)*t + sigma*W)
+	#W = np.cumsum(np.sqrt(dt)*xi)
+	#S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)
 	if type == 1:
 		val = (np.abs(np.mean(S) - K) + (np.mean(S) - K))/2
 	elif type == 2:
@@ -144,11 +146,11 @@ def pre_int_CMC(type, d, M):
     return est, err_est
 
 def pre_int_QMC(type, d, N, K):
-    x = sn.generate_points(N, d, 0)
+    x = sn.generate_points(N, d-1, 0)
     x = x.T
     data = np.zeros(K)
     for i in range(K):
-        dat = pre_int_evaluate(type, np.mod(x + matlib.repmat(np.random.random(size=(int(d),1)), 1, int(N)),1))
+        dat = pre_int_evaluate(type, np.mod(x + matlib.repmat(np.random.random(size=(int(d-1),1)), 1, int(N)),1))
         data[i] = np.mean(dat)
     est = np.mean(data)
     err_est = 3*np.std(data)/np.sqrt(K)

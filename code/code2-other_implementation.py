@@ -18,8 +18,10 @@ matplotlib.rcParams['text.latex.preamble'] = [
 
 def genPsi(type, xi, t, r, sigma, S0, K):
     dt = np.diff(t)
-    W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
-    S = S0*np.exp((r - sigma**2/2)*t + sigma*W)
+    #W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
+    #S = S0*np.exp((r - sigma**2/2)*t + sigma*W)
+    W = np.cumsum(np.sqrt(dt)*xi)
+    S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)
     if type == 1:
         val = (np.abs(np.mean(S) - K) + (np.mean(S) - K))/2
     elif type == 2:
@@ -174,7 +176,7 @@ for j in range(nM):
     # save error results:
     cmc = np.append('cmc_err_est_pre',cmc_err_est_pre)
     qmc = np.append('qmc_err_est_pre',qmc_err_est_pre)
-    fileName = 'results/ex2/error_Psi'+str(types)+'_' + str(Mlist[j]) + '.csv'
+    fileName = 'results/ex2/other_error_Psi'+str(types)+'_' + str(Mlist[j]) + '.csv'
     np.savetxt(fileName, [p for p in zip(cmc, qmc)], delimiter=';', fmt='%s')
 
     # plot:
@@ -200,7 +202,7 @@ for j in range(nM):
     ax.grid(True,which='both') 
     ax.legend()
 
-plt.savefig('./figures/ex2_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
+plt.savefig('./figures/ex2_other_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
 plt.show()
 
 
