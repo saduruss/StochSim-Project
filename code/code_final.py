@@ -3,6 +3,9 @@ from numpy import matlib
 import scipy.stats as st 
 import matplotlib.pyplot as plt 
 import sobol_new as sn # file to generate Sobol low discrepancy sequance (admits dimensions up to 21201)
+from scipy.integrate import quad
+from scipy.optimize import newton
+from scipy.optimize import root_scalar
 import time
 
 from matplotlib import rc
@@ -18,10 +21,8 @@ matplotlib.rcParams['text.latex.preamble'] = [
 
 def genPsi(type, xi, t, r, sigma, S0, K):
 	dt = np.diff(t)
-	W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
-	S = S0*np.exp((r - sigma**2/2)*t + sigma*W)
-	#W = np.cumsum(np.sqrt(dt)*xi)
-	#S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)
+	W = np.cumsum(np.sqrt(dt)*xi)
+	S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)
 	if type == 1:
 		val = (np.abs(np.mean(S) - K) + (np.mean(S) - K))/2
 	elif type == 2:
@@ -49,7 +50,6 @@ def CMC(type, d, M):
     data, _ = evaluate(type, x)
     est = np.mean(data)
     err_est = np.std(data)/np.sqrt(M)
-    #err = np.abs(est - exact)
     return est, err_est
 
 def QMC(type, d, N, K):
@@ -61,20 +61,14 @@ def QMC(type, d, N, K):
         data[i] = np.mean(dat)
     est = np.mean(data)
     err_est = 3*np.std(data)/np.sqrt(K)
-    #err = np.abs(est - exact)
     return est, err_est
 
 def CV(type, d, N, N_bar):
     # pilot run
     x1 = np.random.random((d, N_bar))
     data1, S2 = evaluate(type, x1)
-    t = np.linspace(0,T,d+1)
-    t = t[1:]
+    t = np.linspace(0,T,d+1)[1:]
     mean = S0/d*np.sum(np.exp(r*t))
-    #var = (S0/d)**2*np.sum((np.exp(t*sigma**2)-1)*np.exp(2*r*t))
-    #mu_z = np.mean(data1)
-    #sigma2_zy = 1/(N_bar-1)*np.sum((data1-mu_z)*(S2-mean))
-    #a_opt = -sigma2_zy/var
     C = np.cov(data1,S2)
     a_opt = -C[0,1]/C[1,1]
     # Monte Carlo
@@ -85,56 +79,66 @@ def CV(type, d, N, N_bar):
     err_est = np.sqrt(np.var(Z_tilde)/N)
     return est, err_est
 
-def Simpson(type, M, U_star, S, dt, r, sigma, K):
-    if U_star == 1:
-        return 0
-    else:
-        h = (1-U_star) / M
-        xi = st.norm.ppf(np.linspace(U_star, 1-h, M+1))
-        S_end = S[-1] * np.exp((r - sigma**2/2)*dt + sigma*np.sqrt(dt)*xi)
-        
-        mean_S = np.mean(np.concatenate((matlib.repmat(S,M+1,1),S_end.reshape((M+1,1))), axis=1), 1)
-        
-        f = np.zeros(M+1)
-        if type == 1:
-            f = (np.abs(mean_S - K) + (mean_S - K))/2
-        elif type == 2:
-            f = (mean_S - K) > 0
-        
-        val = f[0] + 4*f[-2] + f[-1]
-        for k in np.arange(1,M/2-1):
-            val = val + 2*f[int(2*k)] + 4*f[int(2*k-1)]
-        return h/3 * val
+# =============================================================================
+# def p(type, xi, t, r, sigma, S0, K, A):
+#     dt = np.diff(t)
+#     fun = lambda x: np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*A.dot(np.concatenate(([x],xi))))) - K
+#     value = newton(fun,0)
+#     
+#     if type == 1:
+#             f = lambda x: max(np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*A.dot(np.concatenate(([x],xi))))) - K, 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
+#     elif type == 2:
+#             f = lambda x: ((np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(A*np.concatenate(([x],xi)))))- K) > 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
+#     val, _ = quad(f, value, 1000)
+# 
+#     return val
+# =============================================================================
 
-def p(type, xi, t, r, sigma, S0, K, M):
-    d = xi.shape[0]
+def p(type, xi, t, r, sigma, S0, K):
     dt = np.diff(t)
-    W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
-    S = S0*np.exp((r - sigma**2/2)*t + sigma*W)  # stock price 0,...,T-dt (without last value)
-    
-    # integration bound U_star for the integrale
-    Stm_star = (d+1)*K - np.sum(S)
-    if Stm_star > 0:
-        value = np.log(Stm_star/S0)/(dt[0]*sigma*t[-1]) - (r-sigma**2/2)/(dt[0]*sigma) - W[-1]/dt[0]
-        U_star = st.norm.cdf(value)
-    else:
-        U_star = 0
+    fun = lambda x: np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi))))) - K
+    value = newton(fun,0)
     
     if type == 1:
-        val = Simpson(type, M, U_star, S, dt[0], r, sigma, K)
+            f = lambda x: max(np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi))))) - K, 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
     elif type == 2:
-        val = Simpson(type, M, U_star, S, dt[0], r, sigma, K)
+            f = lambda x: ((np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi)))))- K) > 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
+    val, _ = quad(f, value, 1000)
+
     return val
 
+# =============================================================================
+# def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
+#     d = x.shape[0]
+#     M = x.shape[1]
+#     val = np.zeros(M)
+#     t = np.linspace(0, T, d+2)
+#     d = t.shape[0]
+#     C = np.zeros((d-1,d-1))
+#     for i in range(1,d):
+#         for j in range(1,d):
+#             C[i-1,j-1] = min(t[i],t[j])
+#     eigenValues, eigenVectors = np.linalg.eig(C)
+#     idx = eigenValues.argsort()[::-1]   
+#     eigenValues = eigenValues[idx]
+#     eigenVectors = eigenVectors[:,idx]
+#     A = np.zeros((d-1,d-1))
+#     for i in range(d-1):
+#         A[:,i] = eigenVectors[:,i]*np.sqrt(eigenValues[i])
+#     for j in range(M):
+#         xi = st.norm.ppf(x[:,j])
+#         val[j] = p(type, xi, t, r, sigma, S0, K, A)
+#     return val
+# =============================================================================
+    
 def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
     d = x.shape[0]
     M = x.shape[1]
     val = np.zeros(M)
-    t = np.linspace(0, T, d+1)
+    t = np.linspace(0, T, d+2)
     for j in range(M):
         xi = st.norm.ppf(x[:,j])
-        M = 2**7
-        val[j] = p(type, xi, t, r, sigma, S0, K, M)
+        val[j] = p(type, xi, t, r, sigma, S0, K)
     return val
 
 def pre_int_CMC(type, d, M):
@@ -166,7 +170,7 @@ S0 = 100
 K = 100
 
 Mlist = 2**np.arange(5,10)
-Nlist = 2**np.arange(7,13)
+Nlist = 2**np.arange(7,14)
 
 nM = np.size(Mlist)
 nN = np.size(Nlist)
@@ -185,11 +189,17 @@ cmc_est_pre, cmc_err_est_pre = np.zeros(nN), np.zeros(nN)
 qmc_est_pre, qmc_err_est_pre = np.zeros(nN), np.zeros(nN)
 cv_est, cv_err_est = np.zeros(nN), np.zeros(nN)
 
+order_cmc = np.zeros(nM)
+order_qmc = np.zeros(nM)
+order_cmc_pre = np.zeros(nM)
+order_qmc_pre = np.zeros(nM)
+order_cv = np.zeros(nM)
+
 fig, axes = plt.subplots(nrows = 5, ncols = 2, figsize = (16,30))
 axes = axes.flatten()
 types = 1 # change to 1 or 2
 
-K = 20
+KK = 20
 for j in range(nM):
     print('Computation for m = '+str(Mlist[j])+' ...')
     for i in range(nN):
@@ -198,7 +208,7 @@ for j in range(nM):
         time1 = time.time()
         times_cmc[i] = time1-start
         
-        qmc_est[i], qmc_err_est[i] = QMC(types, Mlist[j], Nlist[i]/K, K)
+        qmc_est[i], qmc_err_est[i] = QMC(types, Mlist[j], Nlist[i]/KK, KK)
         time2 = time.time()
         times_qmc[i] = time2-time1
         
@@ -206,7 +216,7 @@ for j in range(nM):
         time3 = time.time()
         times_pre_cmc[i] = time3-time2
         
-        qmc_est_pre[i], qmc_err_est_pre[i] = pre_int_QMC(types, Mlist[j], Nlist[i]/K, K)
+        qmc_est_pre[i], qmc_err_est_pre[i] = pre_int_QMC(types, Mlist[j], Nlist[i]/KK, KK)
         time4 = time.time()
         times_pre_qmc[i] = time4-time3
         
@@ -214,6 +224,17 @@ for j in range(nM):
         time5 = time.time()
         times_cv[i] = time5 - time4
 
+    # compute approximation of convergence rate
+    coeff = np.polyfit(np.log(Nlist), np.log(cmc_err_est),deg=1)
+    order_cmc[j] = coeff[0]
+    coeff = np.polyfit(np.log(Nlist), np.log(qmc_err_est),deg=1)
+    order_qmc[j] = coeff[0]
+    coeff = np.polyfit(np.log(Nlist), np.log(cmc_err_est_pre),deg=1)
+    order_cmc_pre[j] = coeff[0]
+    coeff = np.polyfit(np.log(Nlist), np.log(qmc_err_est_pre),deg=1)
+    order_qmc_pre[j] = coeff[0]
+    coeff = np.polyfit(np.log(Nlist), np.log(cv_err_est),deg=1)
+    order_cv[j] = coeff[0]
     
     # save price results
     cmc_mean[j], qmc_mean[j] = np.mean(cmc_est), np.mean(qmc_est)
@@ -253,6 +274,18 @@ for j in range(nM):
     ax.legend()
 
 plt.savefig('./figures/final_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
+plt.show()
+
+plt.figure()
+plt.plot(Mlist, order_cmc, label = 'CMC')
+plt.plot(Mlist, order_qmc, label = 'QMC')
+plt.plot(Mlist, order_cmc_pre, label = 'CMC with pre-int.')
+plt.plot(Mlist, order_qmc_pre, label = 'QMC with pre-int.')
+plt.plot(Mlist, order_cv, label = 'CV')
+plt.title('Order of convergence of the method with respect to m')
+plt.grid(True,which='both')
+plt.legend()
+plt.savefig('./figures/final_order_of_convergence_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
 plt.show()
 
 
