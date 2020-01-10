@@ -69,28 +69,18 @@ def Simpson(type, U_star, S, dt, r, sigma, K):
     if U_star == 1:
         return 0
     else:
-        h = (1-U_star) / (M+1)
-        xi = st.norm.ppf(np.linspace(U_star, 1-h, M+1))
-        S_end = S[-1] * np.exp((r - sigma**2/2)*dt + sigma*np.sqrt(dt)*xi) #pas compris
-        
-        mean_S = np.mean(np.concatenate((matlib.repmat(S,M+1,1),S_end.reshape((M+1,1))), axis=1), 1)
-        
         f = np.zeros(M+1)
         if type == 1:
-            f = np.maximum(mean_S-K, np.zeros(mean_S.shape))
+            f = lambda x: np.maximum(np.mean(np.concatenate((S,[S[-1] * np.exp((r - sigma**2/2)*dt + sigma*np.sqrt(dt)*x)]))) - K, 0)
         elif type == 2:
-            f = (mean_S - K) > 0
-        
-        val = f[0] + 4*f[1] + f[-1]
-        for k in np.arange(1,M/2):
-            val = val + 2*f[int(2*k)] + 4*f[int(2*k+1)]
-        return h/3 * val
+            f = lambda x: (np.mean(np.concatenate((S,[S[-1] * np.exp((r - sigma**2/2)*dt + sigma*np.sqrt(dt)*x)]))) - K) > 0
+        val,_ = quad(f, U_star, 1)
+        return val
+
 
 def p(type, xi, t, r, sigma, S0, K):
     d = xi.shape[0]
     dt = np.diff(t)
-    #W = np.append([0], np.cumsum(np.sqrt(dt)*xi))
-    #S = S0*np.exp((r - sigma**2/2)*t + sigma*W)  # stock price 0,...,T-dt (without last value)
     W = np.cumsum(np.sqrt(dt)*xi)
     S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)  # stock price 0,...,T-dt (without last value)
     
@@ -134,6 +124,7 @@ def pre_int_QMC(type, d, N, K):
     #err = np.abs(est - exact)
     return est, err_est
 
+
 #simulation parameters
 m = 32
 r = 0.1
@@ -143,7 +134,8 @@ S0 = 100
 K = 100
 
 Mlist = 2**np.arange(5,10)
-Nlist = 2**np.arange(7,13)
+#Mlist = [1000]
+Nlist = 2**np.arange(7,10)
 
 nM = np.size(Mlist)
 nN = np.size(Nlist)
@@ -158,6 +150,11 @@ cmc_est, cmc_err_est = np.zeros(nN), np.zeros(nN)
 qmc_est, qmc_err_est = np.zeros(nN), np.zeros(nN)
 cmc_est_pre, cmc_err_est_pre = np.zeros(nN), np.zeros(nN)
 qmc_est_pre, qmc_err_est_pre = np.zeros(nN), np.zeros(nN)
+
+order_cmc = np.zeros(nM)
+order_qmc = np.zeros(nM)
+order_cmc_pre = np.zeros(nM)
+order_qmc_pre = np.zeros(nM)
 
 fig, axes = plt.subplots(nrows = 5, ncols = 2, figsize = (16,30))
 axes = axes.flatten()
@@ -204,10 +201,20 @@ for j in range(nM):
     ax.loglog(Nlist, Nlist**-0.5, '--', label = r'$N^{-1/2}$',color='gray')
     if types == 2:
         ax.loglog(Nlist, Nlist**-1.0, ':',  label = r'$N^{-1}$',color='gray')
+    
+    coeff = np.polyfit(np.log(Nlist), np.log(cmc_err_est),deg=1)
+    order_cmc[j] = coeff[0]
+    coeff = np.polyfit(np.log(Nlist), np.log(qmc_err_est),deg=1)
+    order_qmc[j] = coeff[0]
+    coeff = np.polyfit(np.log(Nlist), np.log(cmc_err_est_pre),deg=1)
+    order_cmc_pre[j] = coeff[0]
+    coeff = np.polyfit(np.log(Nlist), np.log(qmc_err_est_pre),deg=1)
+    order_qmc_pre[j] = coeff[0]
+    
     ax.set_title('Error estimate for '+r'$\Psi_'+str(types)+'$, $m='+str(Mlist[j])+'$')
     ax.grid(True,which='both') 
     ax.legend()
-
+    
     ax = axes[int(2*j+1)]
     ax.loglog(Nlist, times_cmc, '-', label = 'CMC')
     ax.loglog(Nlist, times_qmc, '-', label = 'QMC')
@@ -217,8 +224,17 @@ for j in range(nM):
     ax.set_title('Time for '+r'$\Psi_'+str(types)+'$, $m='+str(Mlist[j])+'$')
     ax.grid(True,which='both') 
     ax.legend()
-
+    
+    
+    
 plt.savefig('./figures/ex2_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
+plt.show()
+
+plt.figure()
+plt.plot(Mlist,order_cmc)
+plt.plot(Mlist,order_qmc)
+plt.plot(Mlist,order_cmc_pre)
+plt.plot(Mlist,order_qmc_pre)
 plt.show()
 
 
