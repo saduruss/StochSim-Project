@@ -231,11 +231,15 @@ plt.savefig('./figures/ex2_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inc
 plt.show()
 
 plt.figure()
-plt.plot(Mlist,order_cmc)
-plt.plot(Mlist,order_qmc)
-plt.plot(Mlist,order_cmc_pre)
-plt.plot(Mlist,order_qmc_pre)
+plt.plot(Mlist, order_cmc, label = 'CMC')
+plt.plot(Mlist, order_qmc, label = 'QMC')
+plt.plot(Mlist, order_cmc_pre, label = 'CMC with pre-int.')
+plt.plot(Mlist, order_qmc_pre, label = 'QMC with pre-int.')
+plt.title('Order of convergence of the method with respect to m')
+plt.grid(True,which='both')
+plt.savefig('./figures/ex2_order_of_convergence_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
 plt.show()
+
 
 
 # price for m:
