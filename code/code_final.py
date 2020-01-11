@@ -7,7 +7,9 @@ from scipy.integrate import quad
 from scipy.optimize import newton
 from scipy.optimize import root_scalar
 import time
+import sys
 
+# Ploting parameters
 from matplotlib import rc
 rc('font',**{'family':'serif','serif':['Computer Modern Roman'],
      'size' : '12'})
@@ -19,32 +21,36 @@ matplotlib.rcParams['text.latex.preamble'] = [
     r'\usepackage{amsmath}',
     r'\usepackage{amssymb}']
 
-def genPsi(type, xi, t, r, sigma, S0, K):
-	dt = np.diff(t)
-	W = np.cumsum(np.sqrt(dt)*xi)
-	S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)
-	if type == 1:
-		val = (np.abs(np.mean(S) - K) + (np.mean(S) - K))/2
-	elif type == 2:
-		val = (np.mean(S) - K) > 0
-	return val, np.mean(S)
 
+########################################
+# PART 1 and 3 without pre-integration #
+########################################
+
+# Payoff funtion
+def genPsi(type, xi, t, r, sigma, S0, K):
+    dt = np.diff(t)
+    W = np.cumsum(np.sqrt(dt)*xi)
+    S = S0*np.exp((r - sigma**2/2)*t[1:] + sigma*W)
+    if type == 1:
+        val = (np.abs(np.mean(S) - K) + (np.mean(S) - K))/2
+    elif type == 2:
+        val = (np.mean(S) - K) > 0
+    # return value of the payoff function and the mean of S (for CV)
+    return val, np.mean(S)
+
+# Common part of CMC, QMC or CV
 def evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
     d = x.shape[0]
     M = x.shape[1]
     val = np.zeros(M)
     S = np.zeros(M)
     t = np.linspace(0, T, d+1)
-    if type == 1:
-        for j in range(M):
-            xi = st.norm.ppf(x[:,j])
-            val[j], S[j] = genPsi(type, xi, t, r, sigma, S0, K)
-    elif type == 2:
-        for j in range(M):
-            xi = st.norm.ppf(x[:,j])
-            val[j], S[j] = genPsi(type, xi, t, r, sigma, S0, K)
+    for j in range(M):
+        xi = st.norm.ppf(x[:,j])
+        val[j], S[j] = genPsi(type, xi, t, r, sigma, S0, K)
     return val, S
 
+# Crude Monte Carlos
 def CMC(type, d, M):
     x = np.random.random((d, M))
     data, _ = evaluate(type, x)
@@ -52,8 +58,9 @@ def CMC(type, d, M):
     err_est = np.std(data)/np.sqrt(M)
     return est, err_est
 
+# Randomized Quasi-Monte Carlos
 def QMC(type, d, N, K):
-    x = sn.generate_points(N, d, 0)
+    x = sn.generate_points(N, d, 0) # sobol sequence generator
     x = x.T
     data = np.zeros(K)
     for i in range(K):
@@ -63,6 +70,7 @@ def QMC(type, d, N, K):
     err_est = 3*np.std(data)/np.sqrt(K)
     return est, err_est
 
+# Control Variate for part 3
 def CV(type, d, N, N_bar):
     # pilot run
     x1 = np.random.random((d, N_bar))
@@ -79,10 +87,16 @@ def CV(type, d, N, N_bar):
     err_est = np.sqrt(np.var(Z_tilde)/N)
     return est, err_est
 
+
+###########################################
+# PART 2 CMC and QMC with pre-integration #
+###########################################
+
+# Integration with respect of the first variable x1: the choosen direction is j = 1
 def p(type, xi, t, r, sigma, S0, K, A):
     dt = np.diff(t)
     fun = lambda x: np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*A@np.concatenate(([x],xi)).T)) - K
-    value = newton(fun,0)
+    value = newton(fun,0) # find the root of fun for the lowe bound of the integration
     #print('value: '+str(value))
     #print('fun: '+str(fun(value)))
     
@@ -108,6 +122,7 @@ def p(type, xi, t, r, sigma, S0, K, A):
 #     return val
 # =============================================================================
 
+# Common part of CMC and QMC
 def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
     d = x.shape[0]
     M = x.shape[1]
@@ -117,9 +132,9 @@ def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
     C = np.zeros((d-1,d-1))
     for i in range(1,d):
         for j in range(1,d):
-            C[i-1,j-1] = min(t[i],t[j])
-    U, s, Vh = np.linalg.svd(C)
-    A=U*np.sqrt(s)
+            C[i-1,j-1] = min(t[i],t[j]) # C is symmetric
+    U, s, Vh = np.linalg.svd(C) # SVD decomposition of C
+    A = -U*np.sqrt(s)
     for j in range(M):
         xi = st.norm.ppf(x[:,j])
         val[j] = p(type, xi, t, r, sigma, S0, K, A)
@@ -138,15 +153,14 @@ def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
 # =============================================================================
 
 def pre_int_CMC(type, d, M):
-    x = np.random.random((d-1, M)) # we choosej = m, the last point
+    x = np.random.random((d-1, M))
     data = pre_int_evaluate(type, x)
     est = np.mean(data)
     err_est = np.std(data)/np.sqrt(M)
-    #err = np.abs(est - exact)
     return est, err_est
 
 def pre_int_QMC(type, d, N, K):
-    x = sn.generate_points(N, d-1, 0)
+    x = sn.generate_points(N, d-1, 0) # sobol sequence generator
     x = x.T
     data = np.zeros(K)
     for i in range(K):
@@ -154,51 +168,57 @@ def pre_int_QMC(type, d, N, K):
         data[i] = np.mean(dat)
     est = np.mean(data)
     err_est = 3*np.std(data)/np.sqrt(K)
-    #err = np.abs(est - exact)
     return est, err_est
 
-#simulation parameters
-m = 32
-r = 0.1
-sigma = 0.1
-T = 1
-S0 = 100
-K = 100
+
+
+
+################
+# Computation: #
+################
 
 Mlist = 2**np.arange(5,10)
-Nlist = 2**np.arange(7,10)
+Nlist = 2**np.arange(7,14)
 
 nM = np.size(Mlist)
 nN = np.size(Nlist)
 
+# mean value of the return to check the sanity of the results
 cmc_mean, qmc_mean          = np.zeros(nM), np.zeros(nM)
 pre_cmc_mean, pre_qmc_mean  = np.zeros(nM), np.zeros(nM)
 cv_mean = np.zeros(nM)
 
+# time of each method
 times_cmc, times_qmc        = np.zeros(nN), np.zeros(nN)
 times_pre_cmc,times_pre_qmc = np.zeros(nN), np.zeros(nN)
 times_cv = np.zeros(nN)
 
+# estimated error of each method
 cmc_est, cmc_err_est = np.zeros(nN), np.zeros(nN)
 qmc_est, qmc_err_est = np.zeros(nN), np.zeros(nN)
 cmc_est_pre, cmc_err_est_pre = np.zeros(nN), np.zeros(nN)
 qmc_est_pre, qmc_err_est_pre = np.zeros(nN), np.zeros(nN)
 cv_est, cv_err_est = np.zeros(nN), np.zeros(nN)
 
+# final order of convergence for each dimention
 order_cmc = np.zeros(nM)
 order_qmc = np.zeros(nM)
 order_cmc_pre = np.zeros(nM)
 order_qmc_pre = np.zeros(nM)
 order_cv = np.zeros(nM)
 
+
 fig, axes = plt.subplots(nrows = 5, ncols = 2, figsize = (16,30))
 axes = axes.flatten()
 types = 1 # change to 1 or 2
 
-KK = 20
+KK = 20 # for QMC algorithm
 for j in range(nM):
-    print('Computation for m = '+str(Mlist[j])+' ...')
+    print("Computation for m = " +str(Mlist[j]))
     for i in range(nN):
+        sys.stdout.write(" n = " +str(Nlist[i]) +"\r")
+        sys.stdout.flush()
+        
         start = time.time()
         cmc_est[i], cmc_err_est[i] = CMC(types, Mlist[j], Nlist[i])
         time1 = time.time()
@@ -232,19 +252,19 @@ for j in range(nM):
     coeff = np.polyfit(np.log(Nlist), np.log(cv_err_est),deg=1)
     order_cv[j] = coeff[0]
     
-    # save price results
+    # save final price results
     cmc_mean[j], qmc_mean[j] = np.mean(cmc_est), np.mean(qmc_est)
     pre_cmc_mean[j], pre_qmc_mean[j] = np.mean(cmc_est_pre), np.mean(qmc_est_pre)
     cv_mean[j] = np.mean(cv_est)
     
-    # save error results:
+    # save error results in a file
     cmc = np.append('cmc_err_est_pre',cmc_err_est_pre)
     qmc = np.append('qmc_err_est_pre',qmc_err_est_pre)
     cv = np.append('cv_err_est', cv_err_est)
     fileName = 'results/final/error_Psi'+str(types)+'_' + str(Mlist[j]) + '.csv'
     np.savetxt(fileName, [p for p in zip(cmc, qmc, cv)], delimiter=';', fmt='%s')
 
-    # plot:
+    # plot error estimate
     ax = axes[int(2*j)]
     ax.loglog(Nlist, cmc_err_est, '-', label = 'CMC error estimate')
     ax.loglog(Nlist, qmc_err_est, '-', label = 'QMC error estimate')
@@ -257,7 +277,8 @@ for j in range(nM):
     ax.set_title('Error estimate for '+r'$\Psi_'+str(types)+'$, $m='+str(Mlist[j])+'$')
     ax.grid(True,which='both') 
     ax.legend()
-
+    
+    # plot time
     ax = axes[int(2*j+1)]
     ax.loglog(Nlist, times_cmc, '-', label = 'CMC')
     ax.loglog(Nlist, times_qmc, '-', label = 'QMC')
@@ -272,6 +293,7 @@ for j in range(nM):
 plt.savefig('./figures/final_error_Psi_'+str(types)+'.pdf', format='pdf', bbox_inches='tight')
 plt.show()
 
+# plot the order of convergence of each method with respect to the dimention of the problem m
 plt.figure()
 plt.plot(Mlist, order_cmc, label = 'CMC')
 plt.plot(Mlist, order_qmc, label = 'QMC')
@@ -285,7 +307,8 @@ plt.savefig('./figures/final_order_of_convergence_Psi_'+str(types)+'.pdf', forma
 plt.show()
 
 
-# price for m:
+# Sanity check:
+# final price for each m:
 r, T = 0.1, 1
 price_cmc = np.exp(-r*T) * cmc_mean
 price_qmc = np.exp(-r*T) * qmc_mean
