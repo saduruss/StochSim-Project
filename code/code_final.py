@@ -79,67 +79,63 @@ def CV(type, d, N, N_bar):
     err_est = np.sqrt(np.var(Z_tilde)/N)
     return est, err_est
 
+def p(type, xi, t, r, sigma, S0, K, A):
+    dt = np.diff(t)
+    fun = lambda x: np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*A@np.concatenate(([x],xi)).T)) - K
+    value = newton(fun,0)
+    #print('value: '+str(value))
+    #print('fun: '+str(fun(value)))
+    
+    if type == 1:
+            f = lambda x: np.maximum(np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*A@np.concatenate(([x],xi)).T)) - K, 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
+    elif type == 2:
+            f = lambda x: ((np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*A@np.concatenate(([x],xi)).T))- K) > 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
+    val, _ = quad(f, value, np.inf)
+    return val
+
 # =============================================================================
-# def p(type, xi, t, r, sigma, S0, K, A):
+# def p(type, xi, t, r, sigma, S0, K):
 #     dt = np.diff(t)
-#     fun = lambda x: np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*A.dot(np.concatenate(([x],xi))))) - K
+#     fun = lambda x: np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi))))) - K
 #     value = newton(fun,0)
 #     
 #     if type == 1:
-#             f = lambda x: max(np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*A.dot(np.concatenate(([x],xi))))) - K, 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
+#             f = lambda x: max(np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi))))) - K, 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
 #     elif type == 2:
-#             f = lambda x: ((np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(A*np.concatenate(([x],xi)))))- K) > 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
+#             f = lambda x: ((np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi)))))- K) > 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
 #     val, _ = quad(f, value, 1000)
 # 
 #     return val
 # =============================================================================
 
-def p(type, xi, t, r, sigma, S0, K):
-    dt = np.diff(t)
-    fun = lambda x: np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi))))) - K
-    value = newton(fun,0)
-    
-    if type == 1:
-            f = lambda x: max(np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi))))) - K, 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
-    elif type == 2:
-            f = lambda x: ((np.mean(S0*np.exp((r - sigma**2/2)*t[1:] + sigma*np.cumsum(np.sqrt(dt)*np.concatenate(([x],xi)))))- K) > 0)*np.exp(-0.5*x**2)/np.sqrt(2*np.pi)
-    val, _ = quad(f, value, 1000)
-
+def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
+    d = x.shape[0]
+    M = x.shape[1]
+    val = np.zeros(M)
+    t = np.linspace(0, T, d+2)
+    d = t.shape[0]
+    C = np.zeros((d-1,d-1))
+    for i in range(1,d):
+        for j in range(1,d):
+            C[i-1,j-1] = min(t[i],t[j])
+    U, s, Vh = np.linalg.svd(C)
+    A=U*np.sqrt(s)
+    for j in range(M):
+        xi = st.norm.ppf(x[:,j])
+        val[j] = p(type, xi, t, r, sigma, S0, K, A)
     return val
-
+    
 # =============================================================================
 # def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
 #     d = x.shape[0]
 #     M = x.shape[1]
 #     val = np.zeros(M)
 #     t = np.linspace(0, T, d+2)
-#     d = t.shape[0]
-#     C = np.zeros((d-1,d-1))
-#     for i in range(1,d):
-#         for j in range(1,d):
-#             C[i-1,j-1] = min(t[i],t[j])
-#     eigenValues, eigenVectors = np.linalg.eig(C)
-#     idx = eigenValues.argsort()[::-1]   
-#     eigenValues = eigenValues[idx]
-#     eigenVectors = eigenVectors[:,idx]
-#     A = np.zeros((d-1,d-1))
-#     for i in range(d-1):
-#         A[:,i] = eigenVectors[:,i]*np.sqrt(eigenValues[i])
 #     for j in range(M):
 #         xi = st.norm.ppf(x[:,j])
-#         val[j] = p(type, xi, t, r, sigma, S0, K, A)
+#         val[j] = p(type, xi, t, r, sigma, S0, K)
 #     return val
 # =============================================================================
-    
-def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
-    d = x.shape[0]
-    M = x.shape[1]
-    val = np.zeros(M)
-    t = np.linspace(0, T, d+2)
-    for j in range(M):
-        xi = st.norm.ppf(x[:,j])
-        val[j] = p(type, xi, t, r, sigma, S0, K)
-    return val
 
 def pre_int_CMC(type, d, M):
     x = np.random.random((d-1, M)) # we choosej = m, the last point
@@ -170,7 +166,7 @@ S0 = 100
 K = 100
 
 Mlist = 2**np.arange(5,10)
-Nlist = 2**np.arange(7,14)
+Nlist = 2**np.arange(7,10)
 
 nM = np.size(Mlist)
 nN = np.size(Nlist)
