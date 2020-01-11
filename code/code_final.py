@@ -119,7 +119,8 @@ def pre_int_evaluate(type, x, r=0.1, sigma=0.1, T=1, S0=100, K=100):
         for j in range(1,d):
             C[i-1,j-1] = min(t[i],t[j])
     U, s, Vh = np.linalg.svd(C)
-    A=U*np.sqrt(s)
+    A=-U*np.sqrt(s)
+    #A = np.linalg.cholesky(C)
     for j in range(M):
         xi = st.norm.ppf(x[:,j])
         val[j] = p(type, xi, t, r, sigma, S0, K, A)
@@ -165,8 +166,8 @@ T = 1
 S0 = 100
 K = 100
 
-Mlist = 2**np.arange(5,10)
-Nlist = 2**np.arange(7,10)
+Mlist = 2**np.arange(5,9)
+Nlist = 2**np.arange(7,13)
 
 nM = np.size(Mlist)
 nN = np.size(Nlist)
