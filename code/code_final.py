@@ -1,3 +1,11 @@
+"""
+QMC integration of non-smooth functions: application to pricing exotic options
+Stochastic Simulations - Miniproject
+
+Huguelet Fanny, Shad Durussel
+
+"""
+
 import numpy as np
 from numpy import matlib
 import scipy.stats as st
@@ -7,7 +15,6 @@ import matplotlib.pyplot as plt
 import sobol_new as sn
 from scipy.integrate import quad
 from scipy.optimize import newton
-from scipy.optimize import root_scalar
 import time
 import sys
 
@@ -97,7 +104,6 @@ def CV(type, d, N, N_bar, r=0.1, S0=100, T=1):
 
 # Integration w.r.t the first variable x1: the choosen direction is j = 1
 def p(type, xi, t, r, sigma, S0, K, A):
-    dt = np.diff(t)
     # function to find the root:
     fun = lambda x: np.mean(S0*np.exp((r - sigma**2/2)*t[1:] \
         + sigma*A@np.concatenate(([x],xi)).T)) - K
