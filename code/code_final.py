@@ -71,7 +71,7 @@ def QMC(type, d, N, K):
     return est, err_est
 
 # Control Variate for part 3
-def CV(type, d, N, N_bar):
+def CV(type, d, N, N_bar, r=0.1, S0=100, T=1):
     # pilot run
     x1 = np.random.random((d, N_bar))
     data1, S2 = evaluate(type, x1)
